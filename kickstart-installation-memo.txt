@@ -3,7 +3,8 @@
 1.) Generating the USB Boot Media. Record an installation in a Kickstart file by manually installing the Red Hat Enterprise Linux once
 2.) Download the Red Hat Enterprise Linux installation DVD ISO file to the /tmp/ directory. 
 
-10). Create the /root/rhel-ks.iso file from the working directory: 
+10). Create the /root/rhel-ks.iso file from the working directory "# /root": 
+# cd 
 # mkisofs -J -T -o /root/rhel-ks.iso -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -R -m TRANS.TBL -graft-points -V "RHEL-7.5 Server.x86_64" /root/rhel-install/
 
 #Sample Output:
