@@ -1,0 +1,76 @@
+# Procedure in installing RHEL7.5 Hardware Certification using kickstart
+# Ref: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/installation_guide/sect-simple-install-kickstart 
+1.) Generating the USB Boot Media. Record an installation in a Kickstart file by manually installing the Red Hat Enterprise Linux once
+2.) Download the Red Hat Enterprise Linux installation DVD ISO file to the /tmp/ directory. 
+
+10). Create the /root/rhel-ks.iso file from the working directory: 
+# mkisofs -J -T -o /root/rhel-ks.iso -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -R -m TRANS.TBL -graft-points -V "RHEL-7.5 Server.x86_64" /root/rhel-install/
+
+#Sample Output:
+Total translation table size: 1316302
+Total rockridge attributes bytes: 578706
+Total directory bytes: 882688
+Path table size(bytes): 218
+Max brk space used 571000
+2325088 extents written (4541 MB)
+[root@smc ~]# ll
+total 4650192
+-rw-------. 1 root root       2497 May 31 11:28 anaconda-ks.cfg
+-rw-r--r--. 1 root root       2590 May 31 11:35 initial-setup-ks.cfg
+-rw-------. 1 root root       2497 May 31 12:00 ks.cfg
+drwxr-xr-x. 9 root root       4096 May 31 16:48 rhel-install
+-rw-r--r--. 1 root root 4761780224 May 31 17:12 rhel-ks.iso
+
+
+# Procedure in Making USB Media on Linux
+# Ref: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/installation_guide/sect-making-usb-media#sect-making-usb-media-linux 
+
+1.) Connect a USB flash drive to the system and execute the dmesg command
+[certuser@smc ~]$ dmesg
+
+Sample output at the end of the command:
+[14602.369028] sd 10:0:0:0: [sdb] 61440000 512-byte logical blocks: (31.4 GB/29.2 GiB)
+[14602.369706] sd 10:0:0:0: [sdb] Write Protect is off
+[14602.369724] sd 10:0:0:0: [sdb] Mode Sense: 43 00 00 00
+[14602.370402] sd 10:0:0:0: [sdb] Write cache: enabled, read cache: enabled, doesn't support DPO or FUA
+[14602.375971]  sdb: sdb1
+[14602.378396] sd 10:0:0:0: [sdb] Attached SCSI removable disk
+[14617.617968] FAT-fs (sdb1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.
+
+2.) Log in as root:
+[certuser@smc ~]$ su 
+
+3.) Provide your root password when prompted. 
+4.) Make sure that the device is not mounted
+[root@smc ~]# findmnt /dev/sdb
+
+Note:
+If the command displays no output, proceed to the next step. 
+Else unmount the device first before going to the next step. 
+See example below.
+
+# findmnt /dev/sdb
+TARGET   SOURCE   FSTYPE  OPTIONS
+/mnt/iso /dev/sdb iso9660 ro,relatime
+
+Note the TARGET column. 
+Next, use the umount target command to unmount the device
+
+# umount /mnt/iso
+
+5.) Use the dd command to write the installation ISO image directly to the USB device (approx 5 mins)
+
+[root@smc ~]# dd if=/root/rhel-ks.iso of=/dev/sdb bs=512k
+9082+1 records in
+9082+1 records out
+4761780224 bytes (4.8 GB) copied, 2.07653 s, 2.3 GB/s
+
+6.) Once completed, exit to superuser mode and remove the USB device
+
+
+#Install Red Hat Enterprise Linux Using the Kickstart File
+1.) Boot the installation USB drive. 
+# Ref: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/installation_guide/chap-booting-installer-x86
+
+2.) Select the entry, that contains the Kickstart configuration, you created in. 
+# Ref: 
