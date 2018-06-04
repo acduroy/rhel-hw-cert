@@ -1,0 +1,88 @@
+### Procedure for creating a USB Boot Media ###
+### Ref: https://access.redhat.com/documentation/en-us/red_hat_satellite/5.8/html/getting_started_guide/appe-boot_devices ###
+
+## 1. Create a directory for the boot image
+	# mkdir -p temp usb/extlinux
+
+## 2. Mount the boot image to the temp directory
+	# mount -o loop boot.iso temp
+
+## 3. Copy the required files for a USB Media Boot device to the previously created directory:
+	# cp -aP temp/isolinux/* usb/extlinux/
+
+## 4. Unmount the temp directory and change the permissions on the cd directory to be readable and writable to the user:
+	# umount temp
+	# chmod -R u+rw usb
+
+## 5. Copy the /usr/share/syslinux/menu.c32 file to the ./usb/extlinux/ directory:
+	# cp -p /usr/share/syslinux/menu.c32 ./usb/extlinux/
+
+## 6. Move the usb/extlinux/isolinux.cfg file to usb/extlinux/extlinux.conf:
+	# mv usb/extlinux/isolinux.cfg usb/extlinux/extlinux.conf
+
+## 7. Remove the temporary files:
+	# rm -f usb/extlinux/isolinux.bin usb/extlinux/TRANS.TBL
+
+## 8. Convert the custom-boot.img file and copy it:
+	# dd if=/dev/zero of=./custom-boot.img bs=1024 count=300000
+
+## 9. Discover the correct mounting location for the loopback device:
+	# losetup -f
+	
+	output: 
+	/dev/loop0
+
+## 10. Set up the loopback device with the boot image:
+	# losetup /dev/loop0 ./custom-boot.img
+
+## 11. Open the fdisk utility:
+	# fdisk /dev/loop0
+
+## 12. Create one primary bootable partition on the device. 
+##     This can be done by using the following key press combination: n p 1 Enter Enter a 1 p w
+
+## 13. Copy the master boot record (MBR) to the loopback device:
+	# dd if=/usr/share/syslinux/mbr.bin of=/dev/loop0
+
+## 14. Add partition maps to the loopback device:
+	# kpartx -av /dev/loop0
+
+## 15. Create the file system:
+	# mkfs.ext2 -m 0 -L "Custom Red Hat Enterprise Linux Boot" /dev/mapper/loop0p1
+
+## 16. Mount the device:
+	# mount /dev/mapper/loop0p1 temp
+
+## 17. Delete temporary files:
+	# rm -rf temp/lost+found
+
+## 18. Copy the usb/extlinux/ directory to a temporary location:
+	# cp -a usb/extlinux/* temp/
+
+## 19. Install the bootloader in the temporary location:
+	# extlinux -i temp
+
+## 20. Unmount the temporary location:
+	# umount temp
+
+## 21. Delete the partition maps on the loopback device:
+	# kpartx -dv /dev/loop0
+
+## 22. Delete the loopback device:
+	# losetup -d /dev/loop0
+
+## 23. Synchronize the file system changes:
+	# sync
+
+## 24. Open the extlinux.conf file in your preferred text editor, 
+##     and customize any boot parameters and targets as needed for USB booting.
+
+
+## 25. Transfer the image to a USB device to complete the procedure. Insert the device, 
+##     and run the dmesg command to check the mounting location. In this example, it is /dev/sdb.
+
+## 26. Unmount the USB device:
+	# umount /dev/sdb
+
+## 27. Copy the image to the USB device:
+	# dd if=./custom-boot.img of=/dev/sdb 
