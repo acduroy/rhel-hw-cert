@@ -1,4 +1,4 @@
-How to install teamviewer on Red Hat 7 using yum
+# How to install teamviewer on Red Hat 7 using yum
 #1. Switch to the root user
 su - 
 
@@ -13,7 +13,7 @@ rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 #Updating / installing...
 #1:epel-release-latest-7.noarch.rpm               ################################# [100%]
 
-#List the installed repo’s:
+#List the installed repoâ€™s:
 yum repolist
 
 #Output:
