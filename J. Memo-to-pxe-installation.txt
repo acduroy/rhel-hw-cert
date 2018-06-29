@@ -1,0 +1,47 @@
+# Preparing Installation Sources Using HTTP or HTTPs:
+# 1. Install the httpd package by running the following command as root:
+	# yum install httpd
+# 2. Copy the full Red Hat Enterprise Linux 7 binary DVD ISO image to the HTTP(S) server. 
+# 3. Mount the binary DVD ISO image, using the mount command, to a suitable directory: 
+	# mkdir /mnt/rhel7-install/
+	# mount -o loop,ro -t iso9660 /<image_directory>/<image.iso> /<mount_point>/	 
+# 4. Copy the files from the mounted image to the HTTP server root. 
+	# cp -r /mnt/rhel7-install/ /var/www/html/
+# 5. Start the httpd service: 
+	# systemctl start httpd.service
+
+# Kickstart Installation of RHEL7 using ftp
+# Step 1. Create a kickstart file using the following methods
+# a).Perform a manual installation on one system first. After the installation completes, 
+# copy a file named anaconda-ks.cfg located in the /root/ directory on the installed system
+# and this file will be the kickstart to be used for the entire automated installation.
+	$ su -
+	# cp anaconda-ks.cfg ks.cfg
+	# chmod 755 ks.cfg  #make the file executable
+# b).Or if you have Red Hat Customer Portal account, you can use Kickstart Configuration Tool to create your kickstart file. 
+# To install the graphical tool at the system:
+	$ sudo yum install system-config-kickstart -y
+	$ system-config-kickstart  # to run kickstart tool
+
+# Step 2. Verify if kickstart file is valid using ksvalidator command line utility before attempting to use in the installation
+# To install this package:
+	$ su -
+	# yum install pykickstart
+# After installing the package, you can validate a kickstart file using the ff. command
+	$ ksvalidator ks.cfg
+
+# Step 3. create tftp server, where kickstart file is stored
+	$ sudo yum -y install vsftpd
+	$ sudo systemctl status vsftpd 	#check if vsftpd service is enabled
+	$ sudo cp ks.cfg /var/ftp/pub/
+	$ firewall-cmd --permanent --add-service=ftp
+	$ systemctl start vsftpd
+	$ systemctl enable vsftpd
+# Insert the media where the DVD iso image of the RHEL7 installation located
+# Once, the installation boot menu appeared, press the tab key. Enter at command line:
+	ks=ftp://<ip_address_ftp_server>/pub/ks.cfg
+
+
+
+
+
