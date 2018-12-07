@@ -1,0 +1,33 @@
+
+#Check CPU hardware virtualization support
+sudo apt install cpu-checker -y
+kvm-ok
+
+#Expected output should be:
+#Output: 
+#INFO: /dev/kvm exists
+#KVM acceleration can be used
+
+#Install KVM
+sudo apt-get install qemu-kvm libvirt-bin ubuntu-vm-builder bridge-utils -y
+
+#Verify installation
+groups                                
+#expected output:supermicro adm cdrom sudo dip plugdev lpadmin sambashare
+#expected output (after reboot): supermicro adm cdrom sudo dip plugdev lpadmin sambashare libvirtd
+
+sudo virsh list --all                      
+#Expected output:
+# Id    Name                           State
+#----------------------------------------------------
+
+#Check for libvirt-sock file ownership
+ls -la /var/run/libvirt/libvirt-sock 
+#Expected output: srwxrwx--- 1 root libvirtd 0 Apr 12 09:49 /var/run/libvirt/libvirt-sock
+
+#Check for kvm file ownership
+ls -l /dev/kvm
+#Expected output: crw-rw----+ 1 root kvm 10, 232 Apr 12 09:49 /dev/kvm
+
+#install Virt Manager
+sudo apt-get install virt-manager -y
