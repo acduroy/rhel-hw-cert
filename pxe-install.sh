@@ -129,9 +129,152 @@ sudo mount -o loop,ro -t iso9660 /<IMD>/<rhel-server-7.5-x86_64-dvd.iso> /$MP/
 	#$ sudo rpm -ivh /mnt/rhel7-install/Packages/system-config-kickstart<tab>
 	#$ system-config-kickstart  # to run kickstart tool
 # c). Or download the kickstart file using curl
-        # Continue as root mode
-	wget https://raw.githubusercontent.com/acduroy/working-scripts/master/hwcert.cfg > hwcert.cfg
-        chmod 755 hwcert.cfg 
+
+# Continue as root mode
+cat << CGF |sudo tee /root/hwcert.cfg
+
+#**************************************************************************
+#platform=x86, AMD64, or Intel EM64T
+#version=DEVEL
+# Install OS instead of upgrade
+install
+
+# Keyboard layouts
+keyboard --vckeymap=us --xlayouts='us'
+
+# Use network installation
+url --url="http://10.100.253.5/pub/rhel7/dvd"
+
+# Prevent the Setup Agent from running on first boot
+firstboot --disable
+
+# System language
+lang en_US.UTF-8
+
+# System authorization information
+auth  --useshadow  --passalgo=sha512
+
+# Use text mode install
+text
+
+# SELinux configuration
+selinux --enforcing
+
+# Firewall configuration
+firewall --disabled
+
+# Network information
+network  --bootproto=dhcp --device=eth0
+
+#set root password
+rootpw redhat
+
+# System timezone
+timezone America/Los_Angeles --isUtc --nontp
+
+#Create a non-root user
+user --name=certuser --password=redhat --gecos="Certification User"
+
+#X window System Configuration information
+xconfig --startxonboot
+
+# Yum repository for redhat-certification
+repo --name=rhcert --baseurl="http://10.100.253.5/pub/rhel7/rhcert-x86_64"
+
+# Yum repository for kernel debuginfo dependencies
+repo --name=rhel7-x86_64-debug --baseurl="http://10.100.253.5/pub/rhel7/debug-x86_64"
+
+# System bootloader configuration
+bootloader --append=" crashkernel=auto" --location=mbr --boot-drive=sda
+
+#See the %pre section for partitioning
+%include /tmp/part-include
+
+### Reboot after installation
+reboot
+
+### installing of packages ###
+%packages
+@base
+@core
+@desktop-debugging
+@fonts
+@ftp-server
+@gnome-desktop
+@guest-agents
+@guest-desktop-agents
+@input-methods
+@internet-browser
+@multimedia
+@virtualization-client
+@virtualization-hypervisor
+@virtualization-tools
+@virtualization-platform
+@x11
+@web-server
+##############################################
+# Required packages for rhcert
+kernel-debuginfo
+kernel-tools
+kernel-abi-whitelists
+qemu-kvm-tools
+dvd+rw-tools
+libvirt-python
+oprofile
+wodim
+xterm
+lftp
+mcelog
+mt-st
+screen
+
+#install rhcert and dependencies from custom repository
+redhat-certification
+redhat-certification-hardware
+redhat-certification-backend
+
+%end
+################### End of Installation Packages #############
+
+####### pre-installation script #########
+%pre
+#!bin/sh
+
+echo "clearpart --all --initlabel" > /tmp/part-include
+echo "ignoredisk --only-use=sda" >> /tmp/part-include
+echo "part /boot --fstype="xfs" --size=512 --ondisk=sda" >> /tmp/part-include
+
+#swap section
+echo "part swap --fstype="swap" --size=1024 --ondisk=sda" >> /tmp/part-include
+echo "part / --fstype="xfs" --size=1024 --grow --ondisk=sda" >> /tmp/part-include
+
+# If you're installing on a UEFI system, create an EFI partition
+if [ -d /sys/firmware/efi ]; then
+   echo "part /boot/efi --fstype="efi" --size=200 --ondisk=sda" >> /tmp/part-include
+fi
+
+%end #end of pre-installation
+
+# ********** post-installation *********
+%post
+# Prevent the initial Gnome setup diaglog box from appearing for root and the certuser
+
+mkdir /root/.config
+echo "yes" > /root/.config/gnome-initial-setup-done
+
+mkdir /home/certuser/.config
+chown certuser:certuser /home/certuser/.config
+echo "yes" > /home/certuser/.config/gnome-initial-setup-done
+chown certuser:certuser /home/certuser/.config/gnome-initial-setup-done
+
+# Starts the listener and server functions
+systemctl enable rhcertd
+%end
+
+#*******************************************************
+
+CFG
+chmod 755 hwcert.cfg 
          
 # Step 2. Verify if kickstart file is valid using ksvalidator command line utility before attempting to use in the installation
 # To install this package:
@@ -142,16 +285,21 @@ sudo mount -o loop,ro -t iso9660 /<IMD>/<rhel-server-7.5-x86_64-dvd.iso> /$MP/
 
 # Step 3. create tftp server, where kickstart file is stored
 	$ sudo rpm -ivh /mnt/rhel7.6-install/Packages/vsftpd<tab>
-	$ sudo systemctl start vsftpd.service
-	$ sudo systemctl enable vsftpd.service
-	$ sudo systemctl status vsftpd 	#check if vsftpd service is enabled
-	$ sudo mkdir -p /var/ftp/pub/rhel7
-	$ sudo cp -rf /home/certuser/Downloads/kickstart<tab>/hwcert.cfg /var/ftp/pub/rhel7
-	$ sudo firewall-cmd --permanent --add-service=ftp
+	
+	# OR
+	
+	yum install -y vsftpd
+	systemctl start vsftpd.service
+	systemctl enable vsftpd.service
+	systemctl status vsftpd 	#check if vsftpd service is enabled
+	mkdir -p /var/ftp/pub/rhel8.2
+	cp -rf /home/certuser/Downloads/kickstart<tab>/hwcert.cfg /var/ftp/pub/rhel7
+	firewall-cmd --permanent --add-service=ftp
+	firewall-cmd --reload
 # Step 4. install other packages
-        $ sudo rpm -ivh /mnt/rhel7.6-install/Packages/deltarpm<tab>
-	$ sudo rpm -ivh /mnt/rhel7.6-install/Packages/python-delta<tab>
-	$ sudo rpm -ivh /mnt/rhel7.6-install/Packages/createrepo<tab>
+        rpm -ivh /mnt/rhel8.2-install/Packages/deltarpm<tab>
+	rpm -ivh /mnt/rhel8.2-install/Packages/python-delta<tab>
+	rpm -ivh /mnt/rhel8.2-install/Packages/createrepo<tab>
 # Step 5. disable iptables if not turn-off yet and set the environment to permissive
 	$ sudo service iptables stop
 	sample output:
