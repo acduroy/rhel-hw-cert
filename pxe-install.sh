@@ -22,7 +22,7 @@ echo -n "What's the NIC device name to be used, choose interfaces above? [ex. en
 echo -n "What's the gateway server ip address? [ex. 10.100.252.1]: "; read GW  
 
 #backup and edit the ifcnfg file:
-local_ip_value=$(ifconfig $DEV|awk '/inet addr/ {split ($2,A,":"); print A[2]}')
+local_ip_value=$(ifconfig $DEV | grep "inet " | awk -F'[: ]+' '{ print $3 }')
 DEV_CFG="ifcfg-$DEV"  
 sudo cp /etc/sysconfig/network-scripts/$DEV /etc/sysconfig/network-scripts/$DEV_CFG.orig
 echo "/etc/sysconfig/network-scripts/$DEV_CFG"
@@ -74,7 +74,8 @@ read -p "Press enter to continue ..."
 printf "Downloading the dvd-iso-image using curl ...\n"
 
 #ref: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/installation_guide/chap-download-red-hat-enterprise-linux
-curl -o rhel-server-7.6-x86_64-dvd.iso 'https://access.cdn.redhat.com//content/origin/files/sha256/85/85a...46c/rhel-server-7.6-x86_64-dvd.iso?_auth_=141...7bf -C -
+curl -o rhel-server-7.7-x86_64-dvd.iso \
+'https://access.cdn.redhat.com/content/origin/files/sha256/88/88b42e934c24af65e78e09f0993e4dded128d74ec0af30b89b3cdc02ec48f028/rhel-server-7.7-x86_64-dvd.iso?user=33a76c02b17c225bfd44e94597c6d8a5&_auth_=1590910263_b446cd693424c68efecfd6a66d221b36'
 mv rhel*.iso ~/Downloads/
 clear
 
@@ -93,9 +94,22 @@ sudo mount -o loop,ro -t iso9660 /<IMD>/<rhel-server-7.5-x86_64-dvd.iso> /$MP/
 # 3. Install the httpd package by running the following command as root:
         $ su -
         # cd /mnt/rhel7-install/Packages
-	# rpm -ivh httpd-2.4.6-80.el7.x86_64.rpm	 
+	# rpm -ivh httpd-2.4.6-80.el7.x86_64.rpm
+	OR
+	#******************
+	# ref: https://linuxconfig.org/installing-apache-on-linux-redhat-8
+	#******************
+	# yum install -y dnf
+	# dnf install httpd
+	# systemctl enable httpd
+	# systemctl start httpd
+	#******************
+	# To open httpd servicee remotely
+	# firewall-cmd --zone=public --permanent --add-service=http
+	# firewall-cmd --reload
+	
 # 4. Copy the files from the mounted image to the HTTP server root. 
-	# cp -r /mnt/rhel7-install/ /var/www/html/
+	# cp -r /mnt/rhel8.2-install/ /var/www/html/
 # 5. Start the httpd service: 
 	# systemctl start httpd.service
         # systemctl status httpd.service 
