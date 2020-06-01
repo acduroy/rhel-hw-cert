@@ -99,42 +99,44 @@ sudo mount -o loop,ro -t iso9660 /<IMD>/<rhel-server-7.5-x86_64-dvd.iso> /$MP/
 	#******************
 	# ref: https://linuxconfig.org/installing-apache-on-linux-redhat-8
 	#******************
-	# yum install -y dnf
-	# dnf install httpd
-	# systemctl enable httpd
-	# systemctl start httpd
+	yum install -y dnf
+	dnf install httpd
+        systemctl enable httpd
+	systemctl start httpd
 	#******************
 	# To open httpd servicee remotely
-	# firewall-cmd --zone=public --permanent --add-service=http
-	# firewall-cmd --reload
+	firewall-cmd --zone=public --permanent --add-service=http
+	firewall-cmd --reload
 	
 # 4. Copy the files from the mounted image to the HTTP server root. 
-	# cp -r /mnt/rhel8.2-install/ /var/www/html/
+	cp -r /mnt/rhel8.2-install/ /var/www/html/
 # 5. Start the httpd service: 
-	# systemctl start httpd.service
-        # systemctl status httpd.service 
-	# firewall-cmd --permanent --add-service=http
+	systemctl start httpd.service
+        systemctl status httpd.service 
+	firewall-cmd --permanent --add-service=http
 
 # Kickstart Installation of RHEL7 using ftp
 # Step 1. Create a kickstart file using the following methods
 # a).Perform a manual installation on one system first. After the installation completes, 
 # copy a file named anaconda-ks.cfg located in the /root/ directory on the installed system
 # and this file will be the kickstart to be used for the entire automated installation.
-	$ su -
+	#su -
+	# Continue as root
 	# cp anaconda-ks.cfg ks.cfg
 	# chmod 755 ks.cfg  #make the file executable
 # b).Or if you have Red Hat Customer Portal account, you can use Kickstart Configuration Tool to create your kickstart file. 
 # To install the graphical tool at the system:
-	$ sudo rpm -ivh /mnt/rhel7-install/Packages/system-config-kickstart<tab>
-	$ system-config-kickstart  # to run kickstart tool
+	#$ sudo rpm -ivh /mnt/rhel7-install/Packages/system-config-kickstart<tab>
+	#$ system-config-kickstart  # to run kickstart tool
 # c). Or download the kickstart file using curl
-        $ curl https://raw.githubusercontent.com/acduroy/working-scripts/master/hwcert.cfg > hwcert.cfg
-        $ chmod 755 hwcert.cfg 
-
+        # Continue as root mode
+	wget https://raw.githubusercontent.com/acduroy/working-scripts/master/hwcert.cfg > hwcert.cfg
+        chmod 755 hwcert.cfg 
+         
 # Step 2. Verify if kickstart file is valid using ksvalidator command line utility before attempting to use in the installation
 # To install this package:
-	$ su -
-	# rpm -ivh /mnt/rhel7-install/Packages/pykickstart<tab>
+	#$ su -
+	rpm -ivh /mnt/rhel7-install/Packages/pykickstart<tab>
 # After installing the package, you can validate a kickstart file using the ff. command
 	$ ksvalidator hwcert.cfg
 
