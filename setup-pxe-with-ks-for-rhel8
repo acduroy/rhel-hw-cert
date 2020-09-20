@@ -1,0 +1,350 @@
+#! /bin/bash
+# Program Name: pxe-rhel-server-setup.sh
+# Usage: It must be root to run ./pxe-rhel-server-setup.sh
+# Version: rev.1
+# Author: acd
+# Build date: 8/2/2020
+# Ref:  https://www.golinuxcloud.com/configure-kickstart-pxe-boot-server-linux/
+
+if [[ $EUID -ne 0 ]]; then
+   
+  echo "This script must be run as root"
+   
+  exit 1
+
+fi
+
+# register and update your rhel install
+subscription-manager register
+subscription-manager attach --auto
+yum update -y
+
+# Step 1: Setup Installation Repo
+echo -n "Enter image file with complete directory path [ex. /home/<user-name>/<iso-name.iso>]: "; read IMAGE
+mkdir /images
+mount $IMAGE /mnt
+cp -apr /mnt/* /images/
+cp -apr /mnt/.discinfo /mnt/.treeinfo /images/
+
+# OR; iyou can also use the command below
+#mount -o loop,ro /path-directory/rhel-8.2-xx.iso  /mnt/images 
+
+# Verify the repository content
+ls -al /images/
+echo -n "Verifying the repository content,check all 14 files above ..."
+echo -p "Press [enter] to continue"
+
+#how to install dnf on centOS 7
+yum install -y dnf
+
+# Step 2: Install and Configure TFTP Server
+echo -n "Installing the TFTP server ..."
+yum install -y tftp-server xinetd 
+echo -n "Create a tftp.service file, below is the content of the service unit file ..."
+echo -p "Press [enter] to continue"
+
+cat << EOF | sudo tee /usr/lib/systemd/system/tftp.service
+[Unit]
+Description=Tftp Server
+Requires=tftp.socket
+Documentation=man:in.tftpd
+
+[Service]
+ExecStart=/usr/sbin/in.tftpd -s /var/lib/tftpboot
+StandardInput=socket
+
+[Install]
+Also=tftp.socket
+
+EOF
+
+echo -n "Verify the content of the service unit file ..."
+cat /usr/lib/systemd/system/tftp.service
+echo -p "Press [enter] to continue ..."
+
+# Start the tftp service and enable it to start automatically post reboot
+systemctl enable tftp.service --now
+
+#Sample output:
+#[root@centos-8 pxelinux.cfg]# systemctl enable tftp.service --now
+#Created symlink /etc/systemd/system/sockets.target.wants/tftp.socket ? /usr/lib/systemd/system/tftp.socket.
+
+# Check the status of tftp.socket
+systemctl status tftp.socket
+
+#Sample output:
+#[root@centos-8 ~]# systemctl status tftp.socket
+#? tftp.socket - Tftp Server Activation Socket
+ #  Loaded: loaded (/usr/lib/systemd/system/tftp.socket; enabled; vendor preset: disabled)
+ #  Active: active (listening) since Sun 2020-04-19 19:32:40 IST; 7h ago
+ #  Listen: [::]:69 (Datagram)
+ #  CGroup: /system.slice/tftp.socket
+
+# Apr 19 19:32:40 centos-8.example.com systemd[1]: Listening on Tftp Server Activation Socket.
+
+# Step 3: Setup PXE boot server
+# Next to perform PXE network based installation, we must configure PXE boot server.
+# We will need Linux boot images to boot the RHEL 8 OS with minimal configuration
+# This is performed using initrd and vmlinuz. I hope you are familiar with the Linux boot process which covers this part
+# Before the actual kernel loads, initrd and vmlinuz will load the necessary drivers from the memory to boot up the server
+
+# Create another directory "pxelinux" under /var/lib/tftpboot to store PXE images
+mkdir -p /var/lib/tftpboot/pxelinux
+
+# Step 3.1: Extract syslinux-tftpboot
+cp /mnt/BaseOS/Packages/syslinux-tftpboot-6.04-4.el8.noarch.rpm /tmp/
+
+# Next extract the syslinux-tftpboot rpm. 
+cd /tmp/
+rpm2cpio syslinux-tftpboot-6.04-4.el8.noarch.rpm | cpio -idm
+
+# copy pxelinux.0 and ldlinux.c32 to /var/lib/tftpboot/pxelinux/
+cp /tmp/tftpboot/ldlinux.c32 /var/lib/tftpboot/pxelinux/
+cp /tmp/tftpboot/pxelinux.0 /var/lib/tftpboot/pxelinux/
+
+# Step 3.2: Copy initrd and vmlinuz
+cp /images/isolinux/initrd.img /var/lib/tftpboot/pxelinux/
+cp /images/isolinux/vmlinuz /var/lib/tftpboot/pxelinux/
+
+# List all the PXE boot image files:
+ls -l /var/lib/tftpboot/pxelinux/
+
+# Sample Output:
+#-r--r--r-- 1 root root 62248424 Apr 19 19:14 initrd.img
+#-rw-r--r-- 1 root root   116096 Apr 19 19:47 ldlinux.c32
+#-rw-r--r-- 1 root root    42821 Apr 19 19:01 pxelinux.0
+#-r-xr-xr-x 1 root root  8106848 Apr 19 19:14 vmlinuz
+
+# Go to pxelinux folder
+cd /var/lib/tftpboot/pxelinux
+
+# Step 3.3: Create Boot Menu
+cat << MENU | sudo tee /var/lib/tftpboot/pxelinux/boot.msg
+Welcome to the installation of "RHEL Server for HWCERT" !
+Red Hat Enterprise linux 8.2 (x86_64)
+Version: 1.0
+Architecture: x86_64
+
+To start the installation enter :
+    '1', '2' and press .
+
+Available boot options:
+
+  1 - Install Red Hat Enterprise Linux 8.2
+  2 - Boot from Harddisk (this is default)
+
+Thank you for using this PXE Server...
+
+MENU
+
+# Step 3.4: Create PXE configuration file
+
+# Create a new directory pxelinux.cfg
+ mkdir /var/lib/tftpboot/pxelinux/pxelinux.cfg
+
+# Create the PXE configuration file 
+cat  << CFG | sudo tee /var/lib/tftpboot/pxelinux/pxelinux.cfg/default
+timeout 600
+display boot.msg
+default 2
+prompt  1
+
+label 1
+  menu label ^Install Red Hat Enterprise Linux 8.2
+  kernel vmlinuz
+  append initrd=initrd.img showopts ks=nfs:10.2.1.5://ks/kickstart.conf ip=dhcp net.ifnames=0 biosdevname=0
+
+label 2
+  menu label Boot from ^local drive
+  localboot 0x80
+
+menu end
+
+CFG
+
+echo "Make sure the PXE configuration files have read permission for other users"
+ls -l /var/lib/tftpboot/pxelinux/
+print "\n"
+ls -l /var/lib/tftpboot/pxelinux/pxelinux.cfg/default
+
+echo "Check, output above should be the same as shown below"
+echo "********************************************"
+echo "-rw-r--r-- 1 root root      325 Apr 19 19:10 boot.msg"
+echo "-r--r--r-- 1 root root 62248424 Apr 19 19:14 initrd.img"
+echo "-rw-r--r-- 1 root root   116096 Apr 19 19:47 ldlinux.c32"
+echo "-rw-r--r-- 1 root root    42821 Apr 19 19:01 pxelinux.0"
+echo "drwxr-xr-x 2 root root     4096 Apr 20 01:47 pxelinux.cfg"
+echo "-r-xr-xr-x 1 root root  8106848 Apr 19 19:14 vmlinuz"
+print "\n"
+echo "-rw-r--r-- 1 root root 307 Apr 20 01:47 /var/lib/tftpboot/pxelinux/pxelinux.cfg/default"
+echo "*********************************************"
+read -p "Press [enter] to continue"
+
+# Step 4: Install and Configure DHCP server
+echo "Install dhcp server"
+read -p "Press [enter] to continue..."
+yum install -y dhcp 
+
+cat<<DHCP_CFG | sudo tee /etc/dhcp/dhcpd.conf
+
+allow bootp;
+allow booting;
+max-lease-time 1200;
+default-lease-time 900;
+log-facility local7;
+
+option ip-forwarding    false;
+option mask-supplier    false;
+
+   subnet 10.2.1.0 netmask 255.255.255.0 {
+
+       option  routers   10.2.1.1;
+       option  domain-name-servers  127.0.0.1;
+       range 10.2.1.100 10.2.1.140;
+       next-server 10.2.1.5;
+       filename "pxelinux/pxelinux.0";
+   }
+
+DHCP_CFG
+
+echo "Enable dhcp service"
+systemctl enable dhcpd --now
+systemctl status dhcpd
+read -p "Press [enter] to continue if no issue..."
+
+# Step 5: Configure kickstart server
+echo "Configure kickstart server"
+echo "Create a directory ks"
+mkdir /ks
+
+echo "Create a kickstart configuration file in  /ks/kickstart.conf"
+cat<<KS_CFG | sudo tee /ks/kickstart.conf
+#version=RHEL8
+ignoredisk --only-use=sda
+
+# Partition clearing information
+clearpart --all
+
+# Use text install
+text
+
+# Create APPStream Repo
+repo --name="AppStream" --baseurl=file:///run/install/repo/AppStream
+
+# Use NFS Repo
+nfs --server=10.2.1.5 --dir=/images/
+
+# Keyboard layouts
+keyboard --vckeymap=us --xlayouts='us'
+
+# System language
+lang en_US.UTF-8
+
+# Network information
+network  --bootproto=dhcp --device=eth0 --ipv6=ignore --activate
+network  --bootproto=dhcp --device=eth1 --onboot=off --ipv6=ignore --activate
+network  --hostname=sut
+
+# Root password
+rootpw --iscrypted $6$n/tv0OtV91/thICo$IG/CZwtvX5bJ5IGzTeBz7i1UK8OxgO5.cKO6iSf7uzLSi4trbUvfmkmr9el7MvkDZvUGXS7kBbM/OfJZRJt4Q0
+
+# Run the Setup Agent on first boot
+firstboot --enable
+
+# Do not configure the X Window System
+skipx
+
+# System services
+services --enabled="chronyd"
+
+# System timezone
+timezone America/Los_Angeles --isUtc --nontp
+user --groups=wheel --name=certuser --password=$6$SYo47FRIeEXIyLci$Cl5KbUtey/pUXV65RK.8PefjAlqQDowy0GXOw8motGX0j6mlwr3iTIGvUUr1mw7kd7JUO61FBJ6FQLEjrmdw8. --iscrypted --gecos="certuser"
+
+# Reboot after installation completes
+reboot
+
+# Disk partitioning information
+autopart --type=plain --fstype=ext4
+
+# Packages to be installed
+%packages
+@^graphical-server-environment
+@container-management
+@debugging
+@development
+@dotnet-core
+@file-server
+@ftp-server
+@graphical-admin-tools
+@guest-agents
+@headless-management
+@infiniband
+@legacy-unix
+@mail-server
+@network-file-system-client
+@network-server
+@performance
+@remote-desktop-clients
+@remote-system-management
+@rpm-development-tools
+@scientific
+@security-tools
+@smart-card
+@smb-server
+@system-tools
+@virtualization-client
+@virtualization-hypervisor
+@virtualization-tools
+@web-server
+kexec-tools
+
+%end
+
+%addon com_redhat_kdump --enable --reserve-mb='auto'
+%end
+
+%anaconda
+pwpolicy root --minlen=6 --minquality=1 --notstrict --nochanges --notempty
+pwpolicy user --minlen=6 --minquality=1 --notstrict --nochanges --emptyok
+pwpolicy luks --minlen=6 --minquality=1 --notstrict --nochanges --notempty
+%end
+
+KS_CFG
+printf "\n"
+echo "Make sure kickstart file has the right attributes"
+ ls -l /ks/kickstart.conf
+printf "\n"
+echo "Output above should be somehow same as here"
+echo "************************"
+echo "-rw-r--r-- 1 root root 1688 Apr 19 20:55 /ks/kickstart.conf"
+echo "************************"
+read -p "Press [enter] to continue if no issue"
+printf "\n"
+# Step 6: Install and Configure NFS
+echo "Install and configure NFS server"
+yum -y install nfs-utils
+printf "\n"
+cat<<NFS_CFG | sudo tee /etc/exports
+/ks     *(ro,sync,no_root_squash)
+/images *(ro,sync,no_root_squash)
+
+NFS_CFG
+
+echo "Re-export the shares"
+exportfs -r
+
+echo "Print the available shares"
+exportfs -v
+printf "\n"
+echo "Output above should be somehow similar below"
+echo "***************************"
+echo "/ks             (sync,wdelay,hide,no_subtree_check,sec=sys,ro,secure,no_root_squash,no_all_squash)"
+echo "/images         (sync,wdelay,hide,no_subtree_check,sec=sys,ro,secure,no_root_squash,no_all_squash)"
+echo "***************************"
+printf "\n"
+echo "Enable NFS-SERVER"
+systemctl enable nfs-server --now
+systemctl status nfs-server
+echo "Make sure nfs-server is up and running"
+read -p "Press [enter] to continue if no issue"
