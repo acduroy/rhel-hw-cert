@@ -348,3 +348,11 @@ systemctl enable nfs-server --now
 systemctl status nfs-server
 echo "Make sure nfs-server is up and running"
 read -p "Press [enter] to continue if no issue"
+printf "\n"
+# Step 5. Disable Firewall
+echo "Disabling firewall services"
+systemctl stop firewalld
+systemctl disable firewalld
+read -p "Enter [enter] to continue if no problem"
+echo "PXE setup with kickstart on RHEL 8.2 is complete, thanks !!!"
+
