@@ -1,0 +1,101 @@
+#!/bin/bash
+#****************************************************
+#Description: Setup NAT using firewalld command
+#Aut: acd
+#Date: 2/6/2020
+#Usage: Script must be run in root mode
+#****************************************************
+
+# Make sure this script will run at root domain
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root"
+   exit 1
+fi
+
+#Check the network devices
+#nmcli device show
+ip addr show
+ifconfig
+
+echo "***************************************************************"
+echo "Verify the Network cards, Wether they installed properly or not"
+echo "The output should be '2'"
+echo "***************************************************************"
+printf "\n"
+ls /etc/sysconfig/network-scripts/ifcfg-eth* | wc -l
+read -p "Press [enter] key to continue or [ctrl-c] to exit: "
+
+printf "\n"
+echo "Next, need to enable IP Forwarding in the kernel:"
+cat << EOF |sudo tee /etc/sysctl.d/ip_forward.conf
+net.ipv4.ip_forward = 1
+EOF
+
+printf "\n"
+echo "Activate the change:"
+sysctl -p /etc/sysctl.d/ip_forward.conf
+
+printf "\n"
+echo "configure the firewall to allow IP masquerading between the public and private interface"
+#(eno1 is the public interface and 10.73.0.0/24 is the private network I will allow):
+echo -n "Enter your public/external NIC interface [e.g. eno1]: "; read EXT_IP
+echo -n "Enter your private network CIDR [e.g. 10.73.0.0/24]: "; read CIDR
+firewall-cmd --permanent --direct --passthrough ipv4 -t nat -I POSTROUTING -o $EXT_IP -j MASQUERADE -s $CIDR
+
+#Assign the interface to the external firewall zone:
+firewall-cmd --change-interface=$EXT_IP --zone=external --permanent
+
+#Default zone should be internal:
+firewall-cmd --set-default-zone=internal
+
+#Reload Firewall:
+firewall-cmd --complete-reload
+
+#Restart all networking and firewall services:
+service network restart && systemctl restart firewalld
+
+#Verify the firewall settings:
+firewall-cmd --list-all
+firewall-cmd --list-all --zone=external
+
+#******************************************************
+# Alternative steps
+#******************************************************
+#[rhel@ansible-ctrl script-to-run]$ vi nat-setup.sh
+#ifconfig
+
+#echo "***************************************************************"
+#echo "Verify the Network cards, Wether they installed properly or not"
+#echo "The output should be '2'"
+#echo "***************************************************************"
+#printf "\n"
+#ls /etc/sysconfig/network-scripts/ifcfg-eth* | wc -l
+#read -p "Press [enter] key to continue or [ctrl-c] to exit: "
+
+#printf "\n"
+#echo "Next, need to enable IP Forwarding in the kernel:"
+#cat << EOF |sudo tee /etc/sysctl_d/ip_forward.conf
+#net.ipv4.ip_forward = 1
+#EOF
+
+#printf "\n"
+#echo "Activate the change:"
+#sysctl -p /etc/sysctl.d/ip_forward.conf
+
+#printf "\n"
+#echo "configure the firewall to allow IP masquerading between the public and private interface"
+#(eno1 is the public interface and 10.73.0.0/24 is the private network I will allow):
+#echo -n "Enter your public/external NIC interface [e.g. eno1]: "; read EXT_IF
+#echo -n "Enter your private/internal NIC interface [e.g. eno2]: "; read INT_IF
+
+#Put each interface in a separate zone:
+#nmcli connection modify $INT_IF connection.zone work
+#nmcli connection modify $EXT_IF connection.zone public
+#nmcli connection reload
+
+#Enable masquerading on the outbound (WAN) interface:
+f#irewall-cmd --add-masquerade --zone=public --permanent
+#firewall-cmd --reload
+
+#Finish
+#echo "NAT setup is completed using firewalld !!! Thanks ..."
